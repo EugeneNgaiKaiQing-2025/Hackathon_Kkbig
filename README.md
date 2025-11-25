@@ -13,26 +13,6 @@ Addressing the shortage of specialists in rural areas, this system leverages **E
 3.  **Automating Documentation** by generating official Referral Letters instantly.
 
 ---
-
-## 🖼️ Demo Walkthrough
-
-| **1. CT Analysis & Diagnosis** | **2. RAG-Based SOP Retrieval** |
-|:---:|:---:|
-| ![CT Analysis](image.png) | ![RAG SOP](image-1.png) |
-| *AI detects abnormalities with precision* | *Auto-retrieves MOH Malaysia guidelines* |
-
-| **3. Multimodal (Audio) Input** | **4. Automated Referral Letter** |
-|:---:|:---:|
-| ![Audio Input](image-2.png) | ![Referral Letter](image-3.png) |
-| *Understands doctor's voice notes (Manglish)* | *One-click generation of patient letters* |
-
-| **5. Dynamic Letter Generation** | **6. System Logic Transparency** |
-|:---:|:---:|
-| ![Dynamic Letter](image-4.png) | ![Logic](image-5.png) |
-| *Auto-fills hospital & patient details* | *Full reasoning trace for audit* |
-
----
-
 ## 🌟 Key Features
 
 ### 1. 🧠 Multimodal Tumor Detection (Vision + Audio)
