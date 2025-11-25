@@ -14,13 +14,18 @@ This project is an AI-powered medical assistant tailored for **Klinik Desa (Rura
 ![alt text](image-1.png)
 ![alt text](image-2.png)
 ![alt text](image-3.png)
+![alt text](image-4.png)
 
-## ⚙️ System Architecture (How it Works)
-1.  **Input**: Doctor uploads CT Scan & records voice notes via **Streamlit UI**.
-2.  **Vision Analysis**: JamAI's Vision Model analyzes the image for density anomalies.
-3.  **Contextual Retrieval (RAG)**: The system searches the `clinic_knowledge` table for relevant MOH SOPs based on the diagnosis.
-4.  **Synthesis**: The Action Table combines visual findings + SOPs to generate a **Referral Plan**.
-5.  **Output**: Displays findings and generates a downloadable Referral Letter.
+## ⚙️ System Architecture & Data Flow
+1.  **Multimodal Ingestion**: Captures **CT Scans (Image)** and **Doctor's Voice Notes (Audio)** via the Streamlit frontend.
+
+2.  **Context Injection Layer**: The audio is transcribed into text and **injected directly** into the Vision Model's prompt. This ensures the AI analyzes the image *while knowing* the patient's clinical history.
+
+3.  **Visual Reasoning**: JamAI's Action Table analyzes the visual data for masses/lesions, cross-referencing with the injected doctor's context.
+
+4.  **Automated RAG Retrieval**: Upon detecting a diagnosis, the system autonomously queries the `clinic_knowledge` table to retrieve the specific **MOH Referral SOPs**.
+
+5.  **SOP-Aligned Synthesis**: The final output combines visual findings, diagnosis, and retrieved government protocols to generate an actionable **Referral Plan** and **Official Letter**.
 
 ## 🛠️ Tech Stack
 * **Frontend**: Streamlit (Python)

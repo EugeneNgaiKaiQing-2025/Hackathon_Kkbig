@@ -2,7 +2,7 @@
 CT Scan AI Assistant (Single Feature Standalone)
 ================================================
 Hackathon Track: Embedded LLM
-Focus: Tumor Detection + MOH Referral SOP (RAG)
+Focus: Tumor Detection + MOH Referral SOP (RAG) + Context Injection
 """
 
 from __future__ import annotations
@@ -20,7 +20,8 @@ PAT = "jamai_pat_f1d90e6738bcb786229dc7689bcf79b220d5752acf83fffb"
 
 # --- CT Scan Table Configuration ---
 CT_TABLE_ID = "ct_scan"
-CT_IMAGE_COL = "ct_scan_result"        # Input: Image Column ID
+CT_IMAGE_COL = "ct_scan_result"        # Input: Image
+CT_CONTEXT_COL = "doctor_context"      # Input: Doctor's Note (新加的！用来接收音频文字)
 CT_FINDINGS_COL = "description"        # Output: Detailed Report
 CT_DIAG_COL = "diagnosis"              # Output: Short Diagnosis
 CT_SOP_COL = "malaysia_referral_SOP"   # Output: RAG Generated SOP
@@ -28,7 +29,7 @@ CT_SOP_COL = "malaysia_referral_SOP"   # Output: RAG Generated SOP
 # --- Audio Table Configuration ---
 AUDIO_TABLE_ID = "audi_feed"
 AUDIO_INPUT_COL = "doc_notes"
-AUDIO_TRANS_COL = "transciption"       # 注意拼写: 你的表中是 'transciption'
+AUDIO_TRANS_COL = "transciption"       # Spelling as per table definition
 
 # ==============================
 # 2. Helper Functions
@@ -68,15 +69,22 @@ def run_audio(client: JamAI, audio_uri: str) -> str:
     try:
         return _safe_text(res.rows[0].columns.get(AUDIO_TRANS_COL))
     except:
-        return "Error: Audio transcription failed (Check Model Quota)."
+        return "Error: Audio transcription failed."
 
-def run_ct_analysis(client: JamAI, image_uri: str) -> Dict[str, str]:
+def run_ct_analysis(client: JamAI, image_uri: str, doctor_note: str = "") -> Dict[str, str]:
     """
-    Main Logic: Sends CT image -> Gets Findings, Diagnosis & RAG SOP
+    Main Logic: Sends CT image + Doctor's Note -> Gets Findings, Diagnosis & RAG SOP
     """
+    # 如果没有录音，给个默认值，防止 AI 困惑
+    if not doctor_note:
+        doctor_note = "No specific clinical context provided."
+
     req = t.MultiRowAddRequest(
         table_id=CT_TABLE_ID,
-        data=[{CT_IMAGE_COL: image_uri}],
+        data=[{
+            CT_IMAGE_COL: image_uri, 
+            CT_CONTEXT_COL: doctor_note  # <--- 关键修改：把音频转录文字传给 JamAI
+        }],
         stream=False, 
     )
     res = client.table.add_table_rows(t.TableType.ACTION, req)
@@ -95,16 +103,15 @@ def run_ct_analysis(client: JamAI, image_uri: str) -> Dict[str, str]:
 
 st.set_page_config(page_title="CT Scan Tumor Assistant", page_icon="🧠", layout="centered")
 
-# --- NEW FEATURE: Sidebar Clinic Profile (增加专业感) ---
+# --- Sidebar: Clinic Profile ---
 with st.sidebar:
-    # 这里的图片是一个免费的医院图标，你可以换成其他的
     st.image("https://img.icons8.com/fluency/96/hospital-2.png", width=80)
     st.title("Klinik Desa AI")
     st.markdown("**Dr. On-Call:** Dr. Ali")
     st.markdown("---")
     st.markdown("**System Status:**")
     st.success("🟢 JamAI Cloud: Online")
-    st.success("🟢 MOH Database: Connected") # 假装连接了数据库，其实是 RAG
+    st.success("🟢 MOH Database: Connected") 
     st.markdown("---")
     st.caption("Powered by JamAI Base\nHackathon 2025 Build")
 
@@ -139,7 +146,7 @@ if st.button("🔍 Analyze Scan & Retrieve SOP", type="primary", use_container_w
         st.warning("Please upload a CT Scan image first.")
         st.stop()
 
-    # 1. Process Audio (If any)
+    # 1. Process Audio FIRST (先处理音频，拿到文字)
     doctor_note = ""
     if audio_file:
         with st.spinner("🎧 Listening to doctor's note..."):
@@ -147,11 +154,11 @@ if st.button("🔍 Analyze Scan & Retrieve SOP", type="primary", use_container_w
             doctor_note = run_audio(client, a_uri)
             st.success(f"**Doctor's Note:** {doctor_note}")
 
-    # 2. Analyze Image
+    # 2. Analyze Image + Context (把文字传给图像分析)
     with st.spinner("🧠 Analyzing tissue density & searching MOH Guidelines..."):
-        # Upload & Run
         img_uri = _upload_file(client, ct_file)
-        result = run_ct_analysis(client, img_uri)
+        # 注意：这里现在把 doctor_note 传进去了！
+        result = run_ct_analysis(client, img_uri, doctor_note)
 
     # --- Results Display ---
     st.markdown("---")
@@ -159,6 +166,7 @@ if st.button("🔍 Analyze Scan & Retrieve SOP", type="primary", use_container_w
     # A. Diagnosis (High Level)
     st.subheader("🩺 Diagnosis Conclusion")
     diag = result["diagnosis"]
+    # 简单的着色逻辑：如果包含 Normal 就显示绿色，否则显示红色
     if "normal" in diag.lower() or "no acute" in diag.lower():
         st.success(f"✅ {diag}")
     else:
@@ -168,15 +176,14 @@ if st.button("🔍 Analyze Scan & Retrieve SOP", type="primary", use_container_w
     with st.expander("📄 View Detailed Radiological Report (English & BM)", expanded=False):
         st.markdown(result["findings"])
 
-    # C. RAG SOP Recommendation (The "Hackathon Winner" Feature)
+    # C. RAG SOP Recommendation
     st.subheader("🏥 Ministry of Health Referral Plan (SOP)")
     st.info(result["sop"])
 
-    # --- NEW FEATURE: Generate Referral Letter (自动化工作流) ---
+    # --- Generate Referral Letter ---
     st.markdown("---")
     st.subheader("📄 Actions")
     
-    # 构造信件内容
     letter_content = f"""URGENT REFERRAL LETTER
 ----------------------
 To: Emergency / Oncology Department
@@ -186,13 +193,16 @@ Date: 2025-11-25
 PATIENT ID: #1023
 REFERRED BY: Dr. Ali
 
-1. DIAGNOSIS CONCLUSION:
+1. CLINICAL CONTEXT (Doctor's Note):
+{doctor_note if doctor_note else "None provided."}
+
+2. DIAGNOSIS CONCLUSION:
 {result['diagnosis']}
 
-2. RADIOLOGICAL FINDINGS:
+3. RADIOLOGICAL FINDINGS:
 {result['findings']}
 
-3. RECOMMENDED MANAGEMENT PLAN (MOH SOP):
+4. RECOMMENDED MANAGEMENT PLAN (MOH SOP):
 {result['sop']}
 
 ---------------------------------------------------
@@ -211,8 +221,9 @@ Ministry of Health Malaysia Guidelines Compliant
     # D. Logic Explanation (For Judges)
     with st.expander("⚙️ System Logic (How it works)"):
         st.markdown(f"""
-        1. **Visual Analysis**: Vision Model analyzed the image for mass/density anomalies.
-        2. **Context Awareness**: Doctor's note *"{doctor_note if doctor_note else 'N/A'}"* was considered.
-        3. **RAG Retrieval**: System queried the `clinic_knowledge` table for relevant MOH SOPs.
-        4. **Synthesis**: Generated the Referral Plan based on the specific Diagnosis.
+        1. **Multimodal Input**: Audio note is transcribed: *"{doctor_note if doctor_note else 'N/A'}"*.
+        2. **Context Injection**: This note is sent ALONG WITH the image to the Vision Model.
+        3. **Visual Analysis**: AI analyzes the CT scan, specifically looking for what the doctor mentioned.
+        4. **RAG Retrieval**: System queries the `clinic_knowledge` table for MOH SOPs.
+        5. **Synthesis**: Generates the final Referral Plan.
         """)
