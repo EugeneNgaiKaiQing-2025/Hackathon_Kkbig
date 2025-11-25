@@ -29,7 +29,7 @@ CT_SOP_COL = "malaysia_referral_SOP"   # Output: RAG Generated SOP
 # --- Audio Table Configuration ---
 AUDIO_TABLE_ID = "audi_feed"
 AUDIO_INPUT_COL = "doc_notes"
-AUDIO_TRANS_COL = "transciption"       # Spelling as per table definition
+AUDIO_TRANS_COL = "transciption"       
 
 # ==============================
 # 2. Helper Functions
