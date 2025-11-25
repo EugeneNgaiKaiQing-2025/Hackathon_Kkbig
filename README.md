@@ -90,14 +90,5 @@ This project implements a sophisticated **Context-Aware RAG Pipeline**:
 * `malaysia_referral_sop.txt`: The **Knowledge Base** source document containing MOH guidelines.
 * `requirements.txt`: List of Python libraries required.
 * `image*.png`: Demo screenshots for documentation.
-
----
-
-### 🏆 Hackathon Track Checklist
-- [x] **Local Impact:** Solves real issues for Malaysian rural clinics.
-- [x] **JamAI Base:** Extensive use of Action/Knowledge Tables.
-- [x] **Multimodal:** Integrates Image, Audio, and Text.
-- [x] **Working Prototype:** Fully functional MVP deployed locally.
-
 ---
 *Submitted for Universiti Malaya Hackathon 2025 - PEKOM CODE FEST*
