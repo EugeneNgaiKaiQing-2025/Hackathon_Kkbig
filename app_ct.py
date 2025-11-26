@@ -13,6 +13,7 @@ import os
 import tempfile
 from typing import Optional, Dict, Any
 import streamlit as st
+import datetime 
 from jamaibase import JamAI, types as t
 
 # ==========================================
@@ -20,8 +21,8 @@ from jamaibase import JamAI, types as t
 # [Pitching Point]: "We use a configuration-driven approach to easily switch 
 # between different Action Tables and Cloud Projects."
 # ==========================================
-PROJECT_ID = "proj_08304a50c7b965045d545866"
-PAT = "jamai_pat_f1d90e6738bcb786229dc7689bcf79b220d5752acf83fffb"
+PROJECT_ID = "proj_7f8d7ebefc689f81119a58d4"
+PAT = "jamai_pat_6a66edd5731845b8a28140745b4c5ac19a42d58f8d9451a1"
 
 # --- Action Table: The "Brain" (Vision + RAG) ---
 CT_TABLE_ID = "ct_scan"
@@ -148,6 +149,12 @@ def run_ct_analysis(client: JamAI, image_uri: str, doctor_note: str = "") -> Dic
 
 st.set_page_config(page_title="CT Scan Tumor Assistant", page_icon="🧠", layout="centered")
 
+# Initialize session state for persistent results (FIX for Bug #2: Page Refresh)
+if 'show_results' not in st.session_state:
+    st.session_state.show_results = False
+if 'analyzed_data' not in st.session_state:
+    st.session_state.analyzed_data = {}
+
 # --- Sidebar: Clinic Profile ---
 with st.sidebar:
     st.image("https://img.icons8.com/fluency/96/hospital-2.png", width=80)
@@ -173,39 +180,87 @@ except Exception as e:
 
 # --- Input Section ---
 st.markdown("### 1. Upload Patient Data")
+
+# Dynamic Patient ID Input
+patient_id_input = st.text_input("Patient ID (must be 4 digits, e.g., 1023)", value="1023")
+
 col1, col2 = st.columns(2)
 
+# Use st.session_state to hold file upload objects to preserve them across reruns
 with col1:
-    ct_file = st.file_uploader("Upload CT Scan Image", type=["jpg", "png", "jpeg", "webp"], key="ct_upl")
-    if ct_file:
-        st.image(ct_file, caption="Preview", use_column_width=True)
+    st.session_state.ct_file = st.file_uploader("Upload CT Scan Image", type=["jpg", "png", "jpeg", "webp"], key="ct_upl")
+    if st.session_state.ct_file:
+        # Fixed: Using use_container_width to remove deprecation warning
+        st.image(st.session_state.ct_file, caption="Preview", use_container_width=True)
 
 with col2:
-    audio_file = st.file_uploader("Doctor's Voice Note (Optional)", type=["mp3", "wav", "m4a"], key="aud_upl")
-    if audio_file:
-        st.audio(audio_file)
+    st.session_state.audio_file = st.file_uploader("Doctor's Voice Note (Optional)", type=["mp3", "wav", "m4a"], key="aud_upl")
+    if st.session_state.audio_file:
+        st.audio(st.session_state.audio_file)
 
 # --- Execution Logic ---
 if st.button("🔍 Analyze Scan & Retrieve SOP", type="primary", use_container_width=True):
-    if not ct_file:
-        st.warning("Please upload a CT Scan image first.")
+    
+    # --- NEW: Patient ID Validation (Enforce 4 digits) ---
+    patient_id_clean = patient_id_input.strip().lstrip('ID:').strip()
+    
+    if not patient_id_clean.isdigit():
+        st.error("🚨 Error: Patient ID must contain only digits.")
+        st.session_state.show_results = False
         st.stop()
+    
+    if len(patient_id_clean) != 4:
+        st.error("🚨 Error: Patient ID must be exactly 4 digits long.")
+        st.session_state.show_results = False
+        st.stop()
+    # --- END NEW Validation ---
+
+    # FIX for Bug #1: Input Validation (CT File Check)
+    if not st.session_state.ct_file:
+        st.error("🚨 Error: The CT Scan Image is mandatory for analysis.")
+        st.warning("Please upload the CT Scan image first to proceed.")
+        st.session_state.show_results = False # Hide old results if validation fails
+        st.stop()
+    
+    # User Notification for potential Bug #1 (Data Mismatch)
+    if st.session_state.ct_file and st.session_state.audio_file:
+         st.info("💡 Note: The AI will integrate the audio note's context with the image analysis. Ensure both files belong to the same patient.")
+
 
     # Step 1: Audio Processing (Speech-to-Text)
     doctor_note = ""
-    if audio_file:
+    if st.session_state.audio_file:
         with st.spinner("🎧 Listening to doctor's note (Processing Manglish)..."):
-            a_uri = _upload_file(client, audio_file)
+            a_uri = _upload_file(client, st.session_state.audio_file)
             doctor_note = run_audio(client, a_uri)
             st.success(f"**Doctor's Note:** {doctor_note}")
 
     # Step 2: Vision Analysis + RAG Retrieval
     with st.spinner("🧠 Analyzing tissue density & searching MOH Guidelines..."):
-        img_uri = _upload_file(client, ct_file)
+        img_uri = _upload_file(client, st.session_state.ct_file)
         # Pass the audio transcript (context) into the vision analysis
         result = run_ct_analysis(client, img_uri, doctor_note)
 
-    # --- Results Display ---
+    # Step 3: Save results to session state (FIX for Bug #2)
+    st.session_state.analyzed_data = {
+        'result': result, 
+        'doctor_note': doctor_note, 
+        'ct_file_name': st.session_state.ct_file.name,
+        'patient_id': patient_id_input # Save the raw input for the letter formatting
+    }
+    st.session_state.show_results = True
+
+# --- Results Display (Reruns on download button click, but state is preserved) ---
+if st.session_state.show_results:
+    # Load data from state
+    result = st.session_state.analyzed_data['result']
+    doctor_note = st.session_state.analyzed_data['doctor_note']
+    ct_file_name = st.session_state.analyzed_data['ct_file_name'] 
+    patient_id_letter = st.session_state.analyzed_data['patient_id'] # Load the raw ID
+
+    # NEW: Get dynamic date
+    current_date = datetime.date.today().strftime("%Y-%m-%d")
+    
     st.markdown("---")
     
     # A. Diagnosis Result
@@ -263,9 +318,9 @@ if st.button("🔍 Analyze Scan & Retrieve SOP", type="primary", use_container_w
 --------------------------------------------------
 To:   {doc_to_en}
 From: Klinik Desa AI (Automated System)
-Date: 2025-11-25
+Date: {current_date}
 
-PATIENT ID: #1023  |  REFERRED BY: Dr. Ali
+PATIENT ID: {patient_id_letter}  |  REFERRED BY: Dr. Ali
 
 1. CLINICAL CONTEXT:
 {doctor_note if doctor_note else "None provided."}
@@ -289,9 +344,9 @@ Ministry of Health Malaysia Guidelines Compliant
 --------------------------------------------------
 Kepada: {doc_to_bm}
 Daripada: Klinik Desa AI (Sistem Automatik)
-Tarikh: 2025-11-25
+Tarikh: {current_date}
 
-ID PESAKIT: #1023  |  DIRUJUK OLEH: Dr. Ali
+ID PESAKIT: {patient_id_letter}  |  DIRUJUK OLEH: Dr. Ali
 
 1. KONTEKS KLINIKAL:
 {doctor_note if doctor_note else "Tiada."}
@@ -317,6 +372,7 @@ Dijana oleh Pembantu Perubatan JamAI Base
         st.download_button(
             label=f"📥 Download English Report (.txt)",
             data=letter_en,
+            # FIXED: Access ct_file_name local variable
             file_name="medical_report_en.txt",
             mime="text/plain",
             type=btn_type
@@ -326,6 +382,7 @@ Dijana oleh Pembantu Perubatan JamAI Base
         st.download_button(
             label=f"📥 Muat Turun Laporan BM (.txt)",
             data=letter_bm,
+            # FIXED: Access ct_file_name local variable
             file_name="laporan_perubatan_bm.txt",
             mime="text/plain",
             type=btn_type
