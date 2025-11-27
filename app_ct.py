@@ -11,6 +11,7 @@ It orchestrates the Frontend (Streamlit) and the Backend AI Logic (JamAI Base).
 from __future__ import annotations
 import os
 import tempfile
+import random  # <--- 新增：用于随机生成 ID
 from typing import Optional, Dict, Any
 import streamlit as st
 import datetime 
@@ -181,8 +182,7 @@ except Exception as e:
 # --- Input Section ---
 st.markdown("### 1. Upload Patient Data")
 
-# Dynamic Patient ID Input
-patient_id_input = st.text_input("Patient ID (must be 4 digits, e.g., 1023)", value="1023")
+# [REMOVED]: Manual Patient ID Input is gone!
 
 col1, col2 = st.columns(2)
 
@@ -201,19 +201,7 @@ with col2:
 # --- Execution Logic ---
 if st.button("🔍 Analyze Scan & Retrieve SOP", type="primary", use_container_width=True):
     
-    # --- NEW: Patient ID Validation (Enforce 4 digits) ---
-    patient_id_clean = patient_id_input.strip().lstrip('ID:').strip()
-    
-    if not patient_id_clean.isdigit():
-        st.error("🚨 Error: Patient ID must contain only digits.")
-        st.session_state.show_results = False
-        st.stop()
-    
-    if len(patient_id_clean) != 4:
-        st.error("🚨 Error: Patient ID must be exactly 4 digits long.")
-        st.session_state.show_results = False
-        st.stop()
-    # --- END NEW Validation ---
+    # [REMOVED]: All Patient ID Validation logic is gone!
 
     # FIX for Bug #1: Input Validation (CT File Check)
     if not st.session_state.ct_file:
@@ -241,12 +229,15 @@ if st.button("🔍 Analyze Scan & Retrieve SOP", type="primary", use_container_w
         # Pass the audio transcript (context) into the vision analysis
         result = run_ct_analysis(client, img_uri, doctor_note)
 
+    # [NEW]: Auto-generate Random Patient ID (e.g., #4821)
+    random_id = str(random.randint(1000, 9999))
+
     # Step 3: Save results to session state (FIX for Bug #2)
     st.session_state.analyzed_data = {
         'result': result, 
         'doctor_note': doctor_note, 
         'ct_file_name': st.session_state.ct_file.name,
-        'patient_id': patient_id_input # Save the raw input for the letter formatting
+        'patient_id': random_id # Save the AUTO-GENERATED ID
     }
     st.session_state.show_results = True
 
@@ -256,11 +247,14 @@ if st.session_state.show_results:
     result = st.session_state.analyzed_data['result']
     doctor_note = st.session_state.analyzed_data['doctor_note']
     ct_file_name = st.session_state.analyzed_data['ct_file_name'] 
-    patient_id_letter = st.session_state.analyzed_data['patient_id'] # Load the raw ID
+    patient_id_letter = st.session_state.analyzed_data['patient_id'] # Load the auto ID
 
     # NEW: Get dynamic date
     current_date = datetime.date.today().strftime("%Y-%m-%d")
     
+    # Display the Auto-generated ID prominently
+    st.caption(f"🆔 Patient ID: **#{patient_id_letter}** (Auto-assigned)")
+
     st.markdown("---")
     
     # A. Diagnosis Result
@@ -320,7 +314,7 @@ To:   {doc_to_en}
 From: Klinik Desa AI (Automated System)
 Date: {current_date}
 
-PATIENT ID: {patient_id_letter}  |  REFERRED BY: Dr. Ali
+PATIENT ID: #{patient_id_letter}  |  REFERRED BY: Dr. Ali
 
 1. CLINICAL CONTEXT:
 {doctor_note if doctor_note else "None provided."}
@@ -346,7 +340,7 @@ Kepada: {doc_to_bm}
 Daripada: Klinik Desa AI (Sistem Automatik)
 Tarikh: {current_date}
 
-ID PESAKIT: {patient_id_letter}  |  DIRUJUK OLEH: Dr. Ali
+ID PESAKIT: #{patient_id_letter}  |  DIRUJUK OLEH: Dr. Ali
 
 1. KONTEKS KLINIKAL:
 {doctor_note if doctor_note else "Tiada."}
@@ -373,7 +367,7 @@ Dijana oleh Pembantu Perubatan JamAI Base
             label=f"📥 Download English Report (.txt)",
             data=letter_en,
             # FIXED: Access ct_file_name local variable
-            file_name="medical_report_en.txt",
+            file_name=f"report_{patient_id_letter}_en.txt",
             mime="text/plain",
             type=btn_type
         )
@@ -383,7 +377,7 @@ Dijana oleh Pembantu Perubatan JamAI Base
             label=f"📥 Muat Turun Laporan BM (.txt)",
             data=letter_bm,
             # FIXED: Access ct_file_name local variable
-            file_name="laporan_perubatan_bm.txt",
+            file_name=f"laporan_{patient_id_letter}_bm.txt",
             mime="text/plain",
             type=btn_type
         )
