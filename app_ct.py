@@ -11,16 +11,14 @@ It orchestrates the Frontend (Streamlit) and the Backend AI Logic (JamAI Base).
 from __future__ import annotations
 import os
 import tempfile
-import random  # <--- 新增：用于随机生成 ID
+import random
 from typing import Optional, Dict, Any
 import streamlit as st
 import datetime 
 from jamaibase import JamAI, types as t
 
 # ==========================================
-# 1. SYSTEM CONFIGURATION (系统配置层)
-# [Pitching Point]: "We use a configuration-driven approach to easily switch 
-# between different Action Tables and Cloud Projects."
+# 1. SYSTEM CONFIGURATION
 # ==========================================
 PROJECT_ID = "proj_7f8d7ebefc689f81119a58d4"
 PAT = "jamai_pat_6a66edd5731845b8a28140745b4c5ac19a42d58f8d9451a1"
@@ -39,8 +37,7 @@ AUDIO_INPUT_COL = "doc_notes"
 AUDIO_TRANS_COL = "transciption"
 
 # ==========================================
-# 2. BACKEND LOGIC / CONTROLLERS (后端逻辑层)
-# [Pitching Point]: "These functions handle the API orchestration and data flow."
+# 2. BACKEND LOGIC / CONTROLLERS
 # ==========================================
 
 def get_client() -> JamAI:
@@ -56,7 +53,6 @@ def _upload_file(client: JamAI, uploaded_file) -> Optional[str]:
         tmp.write(uploaded_file.read())
         tmp_path = tmp.name
     try:
-        # Uploads file to JamAI's S3-compatible storage
         resp = client.file.upload_file(tmp_path)
         return getattr(resp, "uri", None)
     finally:
@@ -70,22 +66,14 @@ def _safe_text(cell: Any) -> str:
     return getattr(cell, "text", "") or ""
 
 def split_language_content(text, marker):
-    """
-    [Post-Processing Logic]
-    Parses the raw LLM output to separate English and Bahasa Melayu content 
-    for better User Experience (UX).
-    """
+    """Parses bilingual output."""
     if marker in text:
         parts = text.split(marker)
         return parts[0].strip(), (marker + parts[1]).strip()
     return text, text 
 
 def extract_hospital(text, keyword):
-    """
-    [Intelligent Parsing]
-    Scans the RAG output (SOP) to automatically identify the target hospital 
-    for the referral letter.
-    """
+    """Extracts target hospital from SOP."""
     for line in text.split('\n'):
         if keyword.lower() in line.lower():
             parts = line.split(":")
@@ -94,10 +82,7 @@ def extract_hospital(text, keyword):
     return "Nearest District Specialist Hospital"
 
 def run_audio(client: JamAI, audio_uri: str) -> str:
-    """
-    [Module: Audio Intelligence]
-    Sends voice notes to Qwen-Audio model for high-accuracy transcription (supports Manglish).
-    """
+    """Sends voice notes for transcription."""
     req = t.MultiRowAddRequest(
         table_id=AUDIO_TABLE_ID,
         data=[{AUDIO_INPUT_COL: audio_uri}],
@@ -111,52 +96,42 @@ def run_audio(client: JamAI, audio_uri: str) -> str:
 
 def run_ct_analysis(client: JamAI, image_uri: str, doctor_note: str = "") -> Dict[str, str]:
     """
-    [Module: Core Reasoning Engine] - ** THIS IS THE MOST IMPORTANT FUNCTION **
-    
-    1. Multimodal Ingestion: Takes both Image and Text (Doctor's Note).
-    2. Context Injection: Injects the doctor's context into the Vision Model.
-    3. RAG Execution: The 'malaysia_referral_SOP' column automatically triggers 
-       a retrieval from the Knowledge Table in the backend.
+    Core Reasoning Engine: Context Injection + Vision + RAG
     """
     if not doctor_note:
         doctor_note = "No specific clinical context provided."
 
-    # Construct the payload with Context Injection
     req = t.MultiRowAddRequest(
         table_id=CT_TABLE_ID,
         data=[{
             CT_IMAGE_COL: image_uri, 
-            CT_CONTEXT_COL: doctor_note  # <-- Context Injection happens here
+            CT_CONTEXT_COL: doctor_note
         }],
         stream=False, 
     )
     
-    # Execute the Chain
     res = client.table.add_table_rows(t.TableType.ACTION, req)
     row = res.rows[0]
     cols = getattr(row, "columns", {})
     
-    # Retrieve structured outputs
     return {
         "findings": _safe_text(cols.get(CT_FINDINGS_COL)),
         "diagnosis": _safe_text(cols.get(CT_DIAG_COL)),
-        "sop": _safe_text(cols.get(CT_SOP_COL)) # This contains the RAG result
+        "sop": _safe_text(cols.get(CT_SOP_COL))
     }
 
 # ==========================================
-# 3. FRONTEND UI (STREAMLIT) (前端展示层)
-# [Pitching Point]: "A lightweight, mobile-first interface designed for rural clinics."
+# 3. FRONTEND UI (STREAMLIT)
 # ==========================================
 
 st.set_page_config(page_title="CT Scan Tumor Assistant", page_icon="🧠", layout="centered")
 
-# Initialize session state for persistent results (FIX for Bug #2: Page Refresh)
 if 'show_results' not in st.session_state:
     st.session_state.show_results = False
 if 'analyzed_data' not in st.session_state:
     st.session_state.analyzed_data = {}
 
-# --- Sidebar: Clinic Profile ---
+# --- Sidebar ---
 with st.sidebar:
     st.image("https://img.icons8.com/fluency/96/hospital-2.png", width=80)
     st.title("Klinik Desa AI")
@@ -182,15 +157,11 @@ except Exception as e:
 # --- Input Section ---
 st.markdown("### 1. Upload Patient Data")
 
-# [REMOVED]: Manual Patient ID Input is gone!
-
 col1, col2 = st.columns(2)
 
-# Use st.session_state to hold file upload objects to preserve them across reruns
 with col1:
     st.session_state.ct_file = st.file_uploader("Upload CT Scan Image", type=["jpg", "png", "jpeg", "webp"], key="ct_upl")
     if st.session_state.ct_file:
-        # Fixed: Using use_container_width to remove deprecation warning
         st.image(st.session_state.ct_file, caption="Preview", use_container_width=True)
 
 with col2:
@@ -201,21 +172,16 @@ with col2:
 # --- Execution Logic ---
 if st.button("🔍 Analyze Scan & Retrieve SOP", type="primary", use_container_width=True):
     
-    # [REMOVED]: All Patient ID Validation logic is gone!
-
-    # FIX for Bug #1: Input Validation (CT File Check)
     if not st.session_state.ct_file:
         st.error("🚨 Error: The CT Scan Image is mandatory for analysis.")
         st.warning("Please upload the CT Scan image first to proceed.")
-        st.session_state.show_results = False # Hide old results if validation fails
+        st.session_state.show_results = False
         st.stop()
     
-    # User Notification for potential Bug #1 (Data Mismatch)
     if st.session_state.ct_file and st.session_state.audio_file:
-         st.info("💡 Note: The AI will integrate the audio note's context with the image analysis. Ensure both files belong to the same patient.")
+         st.info("💡 Note: The AI will integrate the audio note's context with the image analysis.")
 
-
-    # Step 1: Audio Processing (Speech-to-Text)
+    # Step 1: Audio
     doctor_note = ""
     if st.session_state.audio_file:
         with st.spinner("🎧 Listening to doctor's note (Processing Manglish)..."):
@@ -223,38 +189,31 @@ if st.button("🔍 Analyze Scan & Retrieve SOP", type="primary", use_container_w
             doctor_note = run_audio(client, a_uri)
             st.success(f"**Doctor's Note:** {doctor_note}")
 
-    # Step 2: Vision Analysis + RAG Retrieval
+    # Step 2: Vision + RAG
     with st.spinner("🧠 Analyzing tissue density & searching MOH Guidelines..."):
         img_uri = _upload_file(client, st.session_state.ct_file)
-        # Pass the audio transcript (context) into the vision analysis
         result = run_ct_analysis(client, img_uri, doctor_note)
 
-    # [NEW]: Auto-generate Random Patient ID (e.g., #4821)
     random_id = str(random.randint(1000, 9999))
 
-    # Step 3: Save results to session state (FIX for Bug #2)
+    # Step 3: Save State
     st.session_state.analyzed_data = {
         'result': result, 
         'doctor_note': doctor_note, 
         'ct_file_name': st.session_state.ct_file.name,
-        'patient_id': random_id # Save the AUTO-GENERATED ID
+        'patient_id': random_id
     }
     st.session_state.show_results = True
 
-# --- Results Display (Reruns on download button click, but state is preserved) ---
+# --- Results Display ---
 if st.session_state.show_results:
-    # Load data from state
     result = st.session_state.analyzed_data['result']
     doctor_note = st.session_state.analyzed_data['doctor_note']
-    ct_file_name = st.session_state.analyzed_data['ct_file_name'] 
-    patient_id_letter = st.session_state.analyzed_data['patient_id'] # Load the auto ID
+    patient_id_letter = st.session_state.analyzed_data['patient_id']
 
-    # NEW: Get dynamic date
     current_date = datetime.date.today().strftime("%Y-%m-%d")
     
-    # Display the Auto-generated ID prominently
     st.caption(f"🆔 Patient ID: **#{patient_id_letter}** (Auto-assigned)")
-
     st.markdown("---")
     
     # A. Diagnosis Result
@@ -271,7 +230,7 @@ if st.session_state.show_results:
     with st.expander("📄 View Detailed Radiological Report (English & BM)", expanded=False):
         st.markdown(result["findings"])
 
-    # C. RAG Output (MOH SOP)
+    # C. RAG Output
     st.subheader("🏥 Ministry of Health Referral Plan (SOP)")
     st.info(result["sop"])
 
@@ -279,7 +238,6 @@ if st.session_state.show_results:
     st.markdown("---")
     st.subheader("📄 Actions & Documentation")
 
-    # Prepare data for letters
     diag_en, diag_bm = split_language_content(result['diagnosis'], "Bahasa Melayu:")
     find_en, find_bm = split_language_content(result['findings'], "[LAPORAN BAHASA MELAYU]")
     find_en = find_en.replace("[ENGLISH REPORT]", "").strip()
@@ -287,15 +245,22 @@ if st.session_state.show_results:
     if sop_en == sop_bm:
          sop_en, sop_bm = split_language_content(result['sop'], "Syor")
 
-    # Logic for Letter Type (Referral vs Discharge)
+    # --- DYNAMIC LOGIC: BUTTON LABELS & TITLES ---
     if is_normal:
+        # Normal Case
         doc_title_en = "RADIOLOGY REPORT (DISCHARGE)"
         doc_to_en = "Patient Record / General Practitioner"
         doc_title_bm = "LAPORAN RADIOLOGI (DISCAJ)"
         doc_to_bm = "Rekod Pesakit / Doktor Am"
         action_plan_en = "No active referral required. Advice given."
         action_plan_bm = "Tiada rujukan diperlukan. Nasihat diberikan."
+        
+        # Button Labels (Normal)
+        btn_label_en = "📥 Download Discharge Report (.txt)"
+        btn_label_bm = "📥 Muat Turun Laporan Discaj (.txt)"
+        file_prefix = "report"
     else:
+        # Abnormal Case
         doc_title_en = "URGENT REFERRAL LETTER"
         target_hospital = extract_hospital(sop_en, "Hospital") 
         doc_to_en = f"{target_hospital}\n(Attention: Emergency / Oncology Dept)"
@@ -306,8 +271,13 @@ if st.session_state.show_results:
         doc_to_bm = f"{target_hospital_bm}\n(u.p: Jabatan Kecemasan / Onkologi)"
         action_plan_en = sop_en
         action_plan_bm = sop_bm
+        
+        # Button Labels (Abnormal)
+        btn_label_en = "📥 Download Referral Letter (.txt)"
+        btn_label_bm = "📥 Muat Turun Surat Rujukan (.txt)"
+        file_prefix = "referral"
 
-    # Generate Letter Content (English)
+    # Generate Content (English)
     letter_en = f"""{doc_title_en}
 --------------------------------------------------
 To:   {doc_to_en}
@@ -333,7 +303,7 @@ Generated by JamAI Base Medical Assistant
 Ministry of Health Malaysia Guidelines Compliant
 """
 
-    # Generate Letter Content (BM)
+    # Generate Content (BM)
     letter_bm = f"""{doc_title_bm}
 --------------------------------------------------
 Kepada: {doc_to_bm}
@@ -358,32 +328,29 @@ ID PESAKIT: #{patient_id_letter}  |  DIRUJUK OLEH: Dr. Ali
 Dijana oleh Pembantu Perubatan JamAI Base
 """
 
-    # Download Buttons
+    # Download Buttons with Dynamic Labels
     col_a, col_b = st.columns(2)
     btn_type = "secondary" if is_normal else "primary"
     
     with col_a:
         st.download_button(
-            label=f"📥 Download English Report (.txt)",
+            label=btn_label_en,  # <--- Dynamic Label
             data=letter_en,
-            # FIXED: Access ct_file_name local variable
-            file_name=f"report_{patient_id_letter}_en.txt",
+            file_name=f"{file_prefix}_{patient_id_letter}_en.txt",
             mime="text/plain",
             type=btn_type
         )
         
     with col_b:
         st.download_button(
-            label=f"📥 Muat Turun Laporan BM (.txt)",
+            label=btn_label_bm,  # <--- Dynamic Label
             data=letter_bm,
-            # FIXED: Access ct_file_name local variable
-            file_name=f"laporan_{patient_id_letter}_bm.txt",
+            file_name=f"{file_prefix}_{patient_id_letter}_bm.txt",
             mime="text/plain",
             type=btn_type
         )
 
-    # E. System Transparency (For Judges)
-    # [Pitching Point]: "We value transparency. This section shows exactly how the AI reasoned."
+    # E. System Transparency
     with st.expander("⚙️ System Logic (How it works)"):
         st.markdown(f"""
         1. **Multimodal Input**: Audio note is transcribed: *"{doctor_note if doctor_note else 'N/A'}"*.
