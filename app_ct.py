@@ -20,8 +20,8 @@ from jamaibase import JamAI, types as t
 # ==========================================
 # 1. SYSTEM CONFIGURATION
 # ==========================================
-PROJECT_ID = "proj_7f8d7ebefc689f81119a58d4"
-PAT = "jamai_pat_6a66edd5731845b8a28140745b4c5ac19a42d58f8d9451a1"
+PROJECT_ID = "proj_2efa77d74b1ce7c02f8b40ab"
+PAT = "jamai_pat_1b7b6745ab09d30d4049183466c4a08dadb67673c1382e46"
 
 # --- Action Table: The "Brain" (Vision + RAG) ---
 CT_TABLE_ID = "ct_scan"
