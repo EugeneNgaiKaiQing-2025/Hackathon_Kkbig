@@ -1,8 +1,15 @@
 # 🏥 Klinik Desa AI Assistant (Embedded LLM Track)
 
-![Project Status](https://img.shields.io/badge/Hackathon-Submission-blue?style=for-the-badge)
+![Project Status](https://img.shields.io/badge/Hackathon-Winner_🥉-gold?style=for-the-badge)
 ![Tech Stack](https://img.shields.io/badge/Powered_by-JamAI_Base-orange?style=for-the-badge)
 ![Impact](https://img.shields.io/badge/Focus-Rural_Healthcare_Malaysia-red?style=for-the-badge)
+
+## 🏆 Achievements
+**Universiti Malaya PEKOM CODE FEST 2025**
+* **Top 5 Finalist**
+* **2nd Runner-Up (3rd Place)** 🥉
+
+---
 
 ## 📖 Executive Summary
 **Klinik Desa AI** is an intelligent, multimodal medical assistant designed specifically for **Malaysian rural clinics (Klinik Desa)** and District Hospitals.
@@ -13,6 +20,7 @@ Addressing the shortage of specialists in rural areas, this system leverages **E
 3.  **Automating Documentation** by generating official Referral Letters instantly.
 
 ---
+
 ## 🌟 Key Features
 
 ### 1. 🧠 Multimodal Tumor Detection (Vision + Audio)
@@ -39,7 +47,6 @@ Addressing the shortage of specialists in rural areas, this system leverages **E
 This project implements a sophisticated **Context-Aware RAG Pipeline**:
 
 1.  **Multimodal Ingestion**: Captures **CT Scans (Image)** and **Doctor's Voice Notes (Audio)** via the Streamlit frontend.
-
 2.  **Context Injection Layer**: The audio is transcribed into text and **injected directly** into the Vision Model's prompt. This ensures the AI analyzes the image *while knowing* the patient's clinical history.
 3.  **Visual Reasoning**: JamAI's Action Table analyzes the visual data for masses/lesions, cross-referencing with the injected doctor's context.
 4.  **Automated RAG Retrieval**: Upon detecting a diagnosis, the system autonomously queries the `clinic_knowledge` table to retrieve the specific **MOH Referral SOPs**.
@@ -90,5 +97,6 @@ This project implements a sophisticated **Context-Aware RAG Pipeline**:
 * `malaysia_referral_sop.txt`: The **Knowledge Base** source document containing MOH guidelines.
 * `requirements.txt`: List of Python libraries required.
 * `image*.png`: Demo screenshots for documentation.
+
 ---
-*Submitted for Universiti Malaya Hackathon 2025 - PEKOM CODE FEST*
+*Submitted by Team KKBig for Universiti Malaya Hackathon 2025 - PEKOM CODE FEST*
