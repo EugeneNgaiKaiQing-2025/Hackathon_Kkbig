@@ -6,7 +6,6 @@
 
 ## 🏆 Achievements
 **Universiti Malaya PEKOM CODE FEST 2025**
-* **Top 5 Finalist**
 * **2nd Runner-Up (3rd Place)** 🥉
 
 ---
